@@ -1,3 +1,5 @@
+const express = require('express');
+const bodyParser = require('body-parser');
 const JsConfuser = require('js-confuser');
 const config = require('./config.json');
 const fs = require('fs');
@@ -5,15 +7,18 @@ const fs = require('fs');
 let userNameForObfuscation = '';
 
 const setUserName = (name) => {
-  userNameForObfuscation = name;
+  userNameForObfuscation = name; 
 };
+
+const app = express();
+app.use(express.json());
 
 const updateUsageLimit = () => {
   config.currentUsage++;
   fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
 };
 
-const appolofree = async (code) => {
+async function appolofree(code) {
   try {
     const obfuscatedCode = await JsConfuser.obfuscate(code, {
       target: 'node',
@@ -34,12 +39,14 @@ const appolofree = async (code) => {
       preserveFunctionLength: true,
       stringCompression: true,
       compact: true,
-      lock: { antiDebug: false },
-      identifierGenerator: () => {
+      lock: {
+        antiDebug: false,
+      },
+      identifierGenerator: function () {
         const randomValue = Math.floor(Math.random() * 9000) + 1000;
         const repeatedChar = "气".repeat(1);
 
-        return userNameForObfuscation + repeatedChar + randomValue;
+        return userNameForObfuscation + repeatedChar + randomValue;     
       },
     });
 
@@ -54,31 +61,36 @@ Owner: t.me/Luminelll
     console.error('Terjadi kesalahan saat obfuscation dengan jsconfuser:', error);
     throw error;
   }
-};
+}
 
-export default async function handler(req, res) {
+app.get('/api/obfuscated', async (req, res) => {
   const { appolo, name, code } = req.query;
 
+  console.log(`Received request: appolo=${appolo}, name=${name}, code=${code}`);
+
   if (!appolo || appolo !== config.apikey) {
+    console.log('Invalid API key');
     return res.status(401).json({
-      status: false,
+      status: false, 
       message: 'API key tidak valid',
-      error: 'API key is invalid',
+      error: 'API key is invalid'
     });
   }
 
   if (config.currentUsage >= config.dailyLimit) {
+    console.log('Daily limit exceeded');
     return res.status(429).json({
       status: false,
-      message: 'Daily limit exceeded. Please try again tomorrow.',
+      message: 'Daily limit exceeded. Please try again tomorrow.'
     });
   }
 
   if (!name || !code) {
+    console.log('Missing name or code parameter');
     return res.status(400).json({
       status: false,
       message: 'Name dan code diperlukan',
-      error: 'Both name and code are required',
+      error: 'Both name and code are required'
     });
   }
 
@@ -86,6 +98,7 @@ export default async function handler(req, res) {
 
   try {
     const finalCode = await appolofree(code);
+    console.log('Obfuscation successful');
 
     updateUsageLimit();
 
@@ -102,8 +115,8 @@ export default async function handler(req, res) {
       message: 'Gagal melakukan obfuscation',
       error: {
         message: error.message,
-        stack: error.stack,
-      },
+        stack: error.stack
+      }
     });
   }
-}
+});
